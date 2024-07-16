@@ -1,23 +1,55 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, TouchableOpacity, Text, Dimensions } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text, Alert, Platform } from 'react-native';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { Canvas, Paint, Rect } from '@shopify/react-native-skia';
 import { useNavigation } from '@react-navigation/native';
+import { PermissionsAndroid } from 'react-native';
 
 const CameraScreen = () => {
   const [hasPermission, setHasPermission] = useState(false);
   const [faces, setFaces] = useState([]);
   const cameraRef = useRef(null);
   const devices = useCameraDevices();
+  //console.log("Available Devices:", devices); // Log the available devices
   const device = devices.front;
   const navigation = useNavigation();
 
   useEffect(() => {
     const getPermissions = async () => {
-      const status = await Camera.requestCameraPermission();
-      setHasPermission(status === 'authorized');
+      const cameraPermission = await Camera.requestCameraPermission();
+      const microphonePermission = await Camera.requestMicrophonePermission();
+      if (cameraPermission === 'authorized' && microphonePermission === 'authorized') {
+        setHasPermission(true);
+      } else {
+        Alert.alert('Permissions not granted');
+      }
     };
-    getPermissions();
+
+    const requestAndroidPermissions = async () => {
+      try {
+        const granted = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        ]);
+
+        if (
+          granted['android.permission.CAMERA'] === PermissionsAndroid.RESULTS.GRANTED &&
+          granted['android.permission.RECORD_AUDIO'] === PermissionsAndroid.RESULTS.GRANTED
+        ) {
+          setHasPermission(true);
+        } else {
+          Alert.alert('Permissions not granted');
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+    };
+
+    if (Platform.OS === 'android') {
+      requestAndroidPermissions();
+    } else {
+      getPermissions();
+    }
   }, []);
 
   const onFacesDetected = (faces) => {
@@ -31,7 +63,10 @@ const CameraScreen = () => {
     }
   };
 
-  if (!device || !hasPermission) return <View style={styles.container} />;
+  if (!device || !hasPermission) {
+    console.log("No device or permissions not granted"); // Debugging info
+    return <View style={styles.container}><Text style={{ color: 'white' }}>Initializing Camera...</Text></View>;
+  }
 
   return (
     <View style={styles.container}>
